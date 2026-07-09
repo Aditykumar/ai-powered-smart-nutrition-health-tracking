@@ -98,70 +98,95 @@ export async function sendDailySummaryEmail({
     from: from(), to,
     subject: `${APP} Daily Summary — ${date} · Score ${score}/100`,
     html: `
-<div style="font-family:Inter,sans-serif;max-width:560px;margin:0 auto;background:#f8fafc;padding:32px 24px;border-radius:16px;">
+<div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;background:#f8fafc;padding:24px 16px;">
   <!-- Header -->
-  <div style="background:linear-gradient(135deg,#f97316,#ea580c);border-radius:14px;padding:24px 28px;margin-bottom:24px;display:flex;justify-content:space-between;align-items:center;">
-    <div>
-      <h1 style="color:#fff;margin:0;font-size:20px;font-weight:800;">${APP}</h1>
-      <p style="color:rgba(255,255,255,.85);margin:4px 0 0;font-size:13px;">Daily Nutrition Report — ${date}</p>
-    </div>
-    <div style="background:rgba(255,255,255,.2);border-radius:50%;width:56px;height:56px;display:flex;align-items:center;justify-content:center;flex-direction:column;text-align:center;">
-      <strong style="color:#fff;font-size:18px;line-height:1;">${score}</strong>
-      <span style="color:rgba(255,255,255,.8);font-size:10px;">/100</span>
-    </div>
-  </div>
-  <p style="color:#334155;font-size:15px;margin-bottom:20px;">Hi <strong>${name}</strong>, here's your nutrition report for today.</p>
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f97316;border-radius:14px;margin-bottom:20px;">
+    <tr>
+      <td style="padding:22px 24px;">
+        <strong style="color:#fff;font-size:20px;display:block;">${APP}</strong>
+        <span style="color:rgba(255,255,255,.85);font-size:13px;">Daily Nutrition Report — ${date}</span>
+      </td>
+      <td style="padding:22px 24px;text-align:right;vertical-align:middle;white-space:nowrap;">
+        <span style="display:inline-block;background:rgba(255,255,255,.25);border-radius:50%;width:52px;height:52px;line-height:52px;text-align:center;font-size:17px;font-weight:900;color:#fff;">${score}</span>
+        <div style="color:rgba(255,255,255,.8);font-size:11px;margin-top:2px;text-align:center;">/100</div>
+      </td>
+    </tr>
+  </table>
 
-  <!-- Calorie bar -->
-  <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:18px 20px;margin-bottom:16px;">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-      <strong style="color:#0f172a;font-size:15px;">Calories</strong>
-      <span style="color:#ea580c;font-weight:700;font-size:16px;">${Math.round(consumed.calories)} <span style="color:#94a3b8;font-weight:400;">/ ${Math.round(targets.calories)} kcal</span></span>
-    </div>
-    <div style="background:#f1f5f9;border-radius:99px;height:8px;overflow:hidden;">
-      <div style="background:linear-gradient(90deg,#fb923c,#ea580c);width:${pctBar}%;height:100%;border-radius:99px;"></div>
-    </div>
-    <p style="color:#64748b;font-size:13px;margin:8px 0 0;">${pct}% of daily goal · Activity burn: ${Math.round(activityBurn)} kcal · Net: ${netCal} kcal</p>
-  </div>
+  <p style="color:#334155;font-size:15px;margin:0 0 16px;">Hi <strong>${name}</strong>, here's your nutrition report for today.</p>
+
+  <!-- Calories -->
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;margin-bottom:12px;">
+    <tr>
+      <td style="padding:16px 18px;">
+        <table width="100%" cellpadding="0" cellspacing="0">
+          <tr>
+            <td style="color:#0f172a;font-size:15px;font-weight:700;">Calories<span style="color:#ea580c;font-size:16px;font-weight:800;"> ${Math.round(consumed.calories)}</span> <span style="color:#94a3b8;font-weight:400;font-size:14px;">/ ${Math.round(targets.calories)} kcal</span></td>
+          </tr>
+        </table>
+        <!-- Progress bar using table -->
+        <table width="100%" cellpadding="0" cellspacing="0" style="margin:10px 0 8px;">
+          <tr>
+            <td style="background:#f1f5f9;border-radius:99px;height:8px;padding:0;">
+              <table width="${pctBar}%" cellpadding="0" cellspacing="0"><tr><td style="background:#ea580c;height:8px;border-radius:99px;font-size:0;">&nbsp;</td></tr></table>
+            </td>
+          </tr>
+        </table>
+        <span style="color:#64748b;font-size:13px;">${pct}% of daily goal &middot; Activity burn: ${Math.round(activityBurn)} kcal &middot; Net: ${netCal} kcal</span>
+      </td>
+    </tr>
+  </table>
 
   <!-- Macros -->
-  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px;">
-    ${[
-      ["Protein", `${Math.round(consumed.proteinG)}g`, `/ ${Math.round(targets.proteinG)}g`, "#f97316"],
-      ["Carbs",   `${Math.round(consumed.carbsG)}g`,   `/ ${Math.round(targets.carbsG)}g`,   "#22c55e"],
-      ["Fat",     `${Math.round(consumed.fatG)}g`,     `/ ${Math.round(targets.fatG)}g`,     "#3b82f6"],
-    ].map(([label, val, target, color]) => `
-    <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:12px;text-align:center;">
-      <span style="color:#64748b;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;">${label}</span>
-      <div style="font-size:17px;font-weight:800;color:${color};margin:4px 0 2px;">${val}</div>
-      <div style="font-size:11px;color:#94a3b8;">${target}</div>
-    </div>`).join("")}
-  </div>
+  <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:12px;">
+    <tr>
+      ${[
+        ["PROTEIN", `${Math.round(consumed.proteinG)}g`, `/ ${Math.round(targets.proteinG)}g`, "#f97316"],
+        ["CARBS",   `${Math.round(consumed.carbsG)}g`,   `/ ${Math.round(targets.carbsG)}g`,   "#22c55e"],
+        ["FAT",     `${Math.round(consumed.fatG)}g`,     `/ ${Math.round(targets.fatG)}g`,     "#3b82f6"],
+      ].map(([label, val, target, color], i) => `
+      <td width="33%" style="padding:${i === 1 ? "0 6px" : "0"};">
+        <table width="100%" cellpadding="0" cellspacing="0" style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;">
+          <tr><td style="padding:12px 8px;text-align:center;">
+            <span style="color:#64748b;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;">${label}</span><br>
+            <strong style="font-size:18px;color:${color};">${val}</strong><br>
+            <span style="font-size:11px;color:#94a3b8;">${target}</span>
+          </td></tr>
+        </table>
+      </td>`).join("")}
+    </tr>
+  </table>
 
   <!-- Meals -->
-  <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:18px 20px;margin-bottom:16px;">
-    <strong style="color:#0f172a;font-size:14px;display:block;margin-bottom:10px;">Meals logged</strong>
-    ${meals.length
-      ? meals.map((m) => `
-    <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f1f5f9;font-size:13px;">
-      <span style="color:#334155;">${m.name} <span style="color:#94a3b8;">(${m.quantity})</span></span>
-      <span style="color:#ea580c;font-weight:700;">${Math.round(m.calories)} kcal</span>
-    </div>`).join("")
-      : `<p style="color:#94a3b8;font-size:13px;margin:0;">No meals logged today.</p>`}
-  </div>
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;margin-bottom:12px;">
+    <tr><td style="padding:16px 18px;">
+      <strong style="color:#0f172a;font-size:14px;display:block;margin-bottom:10px;">Meals logged</strong>
+      ${meals.length
+        ? meals.map((m) => `
+      <table width="100%" cellpadding="0" cellspacing="0" style="border-bottom:1px solid #f1f5f9;">
+        <tr>
+          <td style="color:#334155;font-size:13px;padding:6px 0;">${m.name} <span style="color:#94a3b8;">(${m.quantity})</span></td>
+          <td style="color:#ea580c;font-weight:700;font-size:13px;text-align:right;padding:6px 0;">${Math.round(m.calories)} kcal</td>
+        </tr>
+      </table>`).join("")
+        : `<span style="color:#94a3b8;font-size:13px;">No meals logged today.</span>`}
+    </td></tr>
+  </table>
 
   <!-- Score badge -->
-  <div style="background:#fff;border:1.5px solid ${scoreColor};border-radius:12px;padding:14px 18px;display:flex;align-items:center;gap:14px;margin-bottom:16px;">
-    <div style="width:44px;height:44px;border-radius:50%;background:${scoreColor};display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-      <strong style="color:#fff;font-size:16px;">${score}</strong>
-    </div>
-    <div>
-      <strong style="color:#0f172a;font-size:14px;display:block;">${score >= 75 ? "Great day!" : score >= 50 ? "Good effort" : "Keep going"}</strong>
-      <span style="color:#64748b;font-size:13px;">${recommendations[0] ?? "Log meals consistently to improve your score."}</span>
-    </div>
-  </div>
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#fff;border:1.5px solid ${scoreColor};border-radius:12px;margin-bottom:16px;">
+    <tr>
+      <td width="56" style="padding:14px 0 14px 16px;vertical-align:middle;">
+        <span style="display:inline-block;width:44px;height:44px;line-height:44px;border-radius:50%;background:${scoreColor};text-align:center;font-weight:900;font-size:16px;color:#fff;">${score}</span>
+      </td>
+      <td style="padding:14px 16px;vertical-align:middle;">
+        <strong style="color:#0f172a;font-size:14px;display:block;">${score >= 75 ? "Great day!" : score >= 50 ? "Good effort" : "Keep going"}</strong>
+        <span style="color:#64748b;font-size:13px;">${recommendations[0] ?? "Log meals consistently to improve your score."}</span>
+      </td>
+    </tr>
+  </table>
 
-  <p style="color:#94a3b8;font-size:11px;text-align:center;margin-top:24px;">© ${new Date().getFullYear()} ${APP} — You're receiving this because you enabled daily summaries.</p>
+  <p style="color:#94a3b8;font-size:11px;text-align:center;margin-top:20px;">© ${new Date().getFullYear()} ${APP} — You're receiving this because you enabled daily summaries.</p>
 </div>`,
   });
 
