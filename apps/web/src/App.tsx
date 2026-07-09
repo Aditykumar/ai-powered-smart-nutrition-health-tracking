@@ -975,7 +975,7 @@ export default function App() {
     setAuthBusy(true);
     setAuthError("");
     try {
-      const res = await fetch(`${API}/api/auth/google`, {
+      const res = await fetch(`${apiBaseUrl}/api/auth/google`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ credential: credentialResponse.credential }),
@@ -1003,13 +1003,13 @@ export default function App() {
     setAuthBusy(true);
     setAuthError("");
     try {
-      await fetch(`${API}/api/health/assessment`, {
+      await fetch(`${apiBaseUrl}/api/health/assessment`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-user-id": pendingGoogleSession.userId },
         body: JSON.stringify({ userId: pendingGoogleSession.userId, dob: googleProfileForm.dob, weightKg: Number(googleProfileForm.weightKg), profileSource: "google" }),
       });
       // Also patch user record with dob/weight
-      await fetch(`${API}/api/auth/update-profile`, {
+      await fetch(`${apiBaseUrl}/api/auth/update-profile`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userId: pendingGoogleSession.userId, dob: googleProfileForm.dob, weightKg: Number(googleProfileForm.weightKg) }),
