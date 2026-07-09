@@ -1,0 +1,13 @@
+services:
+  mongo:
+    image: mongo:7
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: nutrition
+      MONGO_INITDB_ROOT_PASSWORD: nutrition
+    ports:
+      - "27017:27017"
+    volumes:
+      - nutrition_mongo_data:/data/db
+
+volumes:
+  nutrition_mongo_data:

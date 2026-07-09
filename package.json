@@ -1,0 +1,30 @@
+{
+  "name": "ai-powered-smart-nutrition-health-tracking",
+  "private": true,
+  "version": "0.1.0",
+  "engines": {
+    "node": ">=18.20.0",
+    "npm": ">=9.0.0"
+  },
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:web": "npm run dev --workspace @nutrition/web",
+    "dev:api": "npm run dev --workspace @nutrition/api",
+    "dev": "concurrently \"npm run dev:api\" \"npm run dev:web\"",
+    "build": "npm run build --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  },
+  "dependencies": {
+    "@nutrition/api": "file:apps/api",
+    "@nutrition/web": "file:apps/web",
+    "@react-oauth/google": "^0.13.5",
+    "google-auth-library": "^10.9.0",
+    "react-is": "^19.2.7"
+  }
+}
