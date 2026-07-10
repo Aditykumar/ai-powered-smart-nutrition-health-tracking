@@ -127,16 +127,20 @@ select:focus-visible {
   justify-content: center;
   background: rgba(16, 26, 19, 0.55);
   backdrop-filter: blur(6px);
-  padding: 1rem;
+  padding: 2rem 1rem;
+  overflow-y: auto;
 }
 
 .auth-card {
   width: min(440px, 100%);
+  max-height: 100%;
+  overflow-y: auto;
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--radius-lg);
   padding: 2.5rem 2rem;
   box-shadow: 0 32px 80px rgba(16, 33, 27, 0.22);
+  margin: auto;
 }
 
 .auth-brand {
@@ -145,6 +149,17 @@ select:focus-visible {
   gap: 0.75rem;
   margin-bottom: 2rem;
   position: relative;
+}
+
+.auth-brand .brand-mark {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: linear-gradient(160deg, #35c2a1, var(--accent));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
 }
 
 .auth-brand strong {
@@ -219,6 +234,46 @@ select:focus-visible {
   color: var(--accent-strong);
 }
 
+.auth-divider {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  color: var(--ink-faint);
+  font-size: 0.8rem;
+  margin: 0.2rem 0;
+}
+
+.auth-divider::before,
+.auth-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+
+.google-btn-wrap {
+  display: flex;
+  justify-content: center;
+}
+
+.google-profile-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 0.3rem;
+  margin-bottom: 0.5rem;
+}
+
+.google-avatar {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  object-fit: cover;
+  margin-bottom: 0.4rem;
+  border: 1px solid var(--line);
+}
+
 /* ── App shell (logged in) ───────────────────────────── */
 .app {
   display: grid;
@@ -278,7 +333,8 @@ select:focus-visible {
   gap: 0.15rem;
 }
 
-.sidebar-nav button {
+.sidebar-nav button,
+.sidebar-nav a {
   display: flex;
   align-items: center;
   gap: 0.7rem;
@@ -293,13 +349,21 @@ select:focus-visible {
   background: transparent;
   box-shadow: none;
   text-align: left;
+  text-decoration: none;
 }
 
-.sidebar-nav button:hover {
+.sidebar-nav button:hover,
+.sidebar-nav a:hover {
   background: rgba(255, 255, 255, 0.05);
   color: var(--sidebar-ink);
   transform: none;
   box-shadow: none;
+}
+
+.sidebar-nav a.active {
+  background: rgba(53, 194, 161, 0.14);
+  color: var(--sidebar-ink);
+  border-color: rgba(53, 194, 161, 0.3);
 }
 
 .sidebar-nav svg {
@@ -632,6 +696,18 @@ select:focus-visible {
   gap: 1.8rem;
   font-size: 0.86rem;
   color: var(--ink-soft);
+}
+
+.landing-nav-link {
+  all: unset;
+  cursor: pointer;
+  color: var(--ink-soft);
+  font: inherit;
+  transition: color 0.15s ease;
+}
+
+.landing-nav-link:hover {
+  color: var(--ink);
 }
 
 .landing-top-actions {
@@ -977,6 +1053,39 @@ select:focus-visible {
   gap: 4px;
 }
 
+.coach-thread {
+  display: grid;
+  gap: 14px;
+}
+
+.coach-exchange {
+  display: grid;
+  gap: 8px;
+}
+
+.coach-question {
+  align-self: flex-end;
+  justify-self: end;
+  background: var(--ink);
+  color: var(--bg);
+  border-radius: var(--radius-md) var(--radius-md) 4px var(--radius-md);
+  padding: 0.65rem 1rem;
+  font-size: 0.9rem;
+  max-width: 80%;
+}
+
+.coach-answer {
+  align-self: flex-start;
+  justify-self: start;
+  background: var(--accent-soft);
+  color: var(--ink);
+  border-radius: var(--radius-md) var(--radius-md) var(--radius-md) 4px;
+  padding: 0.75rem 1rem;
+  font-size: 0.92rem;
+  line-height: 1.6;
+  max-width: 85%;
+}
+
 .summary-preview {
   margin: 0;
   padding: 18px;
@@ -1112,6 +1221,44 @@ select:focus-visible {
 .field textarea:focus {
   border-color: var(--accent);
   box-shadow: 0 0 0 4px var(--accent-soft);
+}
+
+.phone-input {
+  display: flex;
+  align-items: stretch;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  overflow: hidden;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.phone-input:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 4px var(--accent-soft);
+}
+
+.phone-input .prefix {
+  display: flex;
+  align-items: center;
+  padding: 0 0.85rem;
+  background: var(--surface-2);
+  color: var(--ink-soft);
+  font-family: var(--font-mono);
+  font-size: 0.92rem;
+  border-right: 1px solid var(--line);
+  flex: none;
+}
+
+.phone-input input {
+  border: 0;
+  border-radius: 0;
+  flex: 1;
+  min-width: 0;
+}
+
+.phone-input input:focus {
+  box-shadow: none;
 }
 
 .field textarea {

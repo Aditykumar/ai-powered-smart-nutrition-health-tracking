@@ -62,4 +62,11 @@ export const env = {
   whatsappPhoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID?.trim() || "",
   whatsappToNumber: process.env.WHATSAPP_TO_NUMBER?.trim() || "",
   geminiApiKey: process.env.GEMINI_API_KEY?.trim() || "",
+  googleClientId: process.env.GOOGLE_CLIENT_ID?.trim() || "",
+  usdaApiKey: process.env.USDA_API_KEY?.trim() || "",
+  // Email — free options: Brevo (smtp-relay.brevo.com:587) or Gmail (smtp.gmail.com:587)
+  smtpHost: process.env.SMTP_HOST?.trim() || "",
+  smtpPort: Number(process.env.SMTP_PORT?.trim() || 587),
+  smtpUser: process.env.SMTP_USER?.trim() || "",
+  smtpPass: process.env.SMTP_PASS?.trim() || "",
 };

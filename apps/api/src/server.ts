@@ -7,6 +7,9 @@ import { dbRouter } from "./routes/db.js";
 import { reportsRouter } from "./routes/reports.js";
 import { activitiesRouter } from "./routes/activities.js";
 import { whatsappRouter } from "./routes/whatsapp.js";
+import { emailRouter } from "./routes/email.js";
+import { coachRouter } from "./routes/coach.js";
+import { bodyRouter } from "./routes/body.js";
 import { authRouter } from "./routes/auth.js";
 import { connectDatabase } from "./config/database.js";
 import { env } from "./config/env.js";
@@ -44,6 +47,9 @@ app.use("/api/db", dbRouter);
 app.use("/api/reports", reportsRouter);
 app.use("/api/activities", activitiesRouter);
 app.use("/api/whatsapp", whatsappRouter);
+app.use("/api/email", emailRouter);
+app.use("/api/coach", coachRouter);
+app.use("/api/body", bodyRouter);
 
 app.use((error: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   const message = error instanceof Error ? error.message : "Unexpected server error";

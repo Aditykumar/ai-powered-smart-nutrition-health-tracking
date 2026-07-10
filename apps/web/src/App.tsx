@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
+import { NavLink, Route, Routes } from "react-router-dom";
+import { GoogleLogin } from "@react-oauth/google";
 import * as pdfjsLib from "pdfjs-dist";
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
   "pdfjs-dist/build/pdf.worker.mjs",
@@ -219,7 +221,7 @@ type ActivityAnalysisResult = {
 };
 
 type AuthSession = { userId: string; name: string; token: string };
-type AuthView = "login" | "register" | "forgot" | "reset";
+type AuthView = "login" | "register" | "forgot" | "verify-otp" | "reset" | "google-profile";
 
 const nutrientDefaults: NutrientBreakdown = {
   calories: 0,
@@ -362,8 +364,12 @@ export default function App() {
   const [activityStepCount, setActivityStepCount] = useState("");
   const [activityDuration, setActivityDuration] = useState("");
   const [activityAnalysis, setActivityAnalysis] = useState<ActivityAnalysisResult | null>(null);
-  const [whatsappNumber, setWhatsappNumber] = useState("+917037449337");
-  const [whatsappStatusMessage, setWhatsappStatusMessage] = useState("");
+  const [weightInput, setWeightInput] = useState("");
+  const [weightEntries, setWeightEntries] = useState<{ _id: string; date: string; weightKg?: number }[]>([]);
+  const [digestEmail, setDigestEmail] = useState("");
+  const [digestStatusMessage, setDigestStatusMessage] = useState("");
+  const [coachQuestion, setCoachQuestion] = useState("");
+  const [coachMessages, setCoachMessages] = useState<{ question: string; answer: string }[]>([]);
   const [busy, setBusy] = useState({
     assessment: false,
     meal: false,
@@ -371,7 +377,9 @@ export default function App() {
     blood: false,
     food: false,
     activity: false,
-    whatsapp: false,
+    weight: false,
+    digest: false,
+    coach: false,
     estimate: false,
   });
   const [error, setError] = useState("");
@@ -386,13 +394,22 @@ export default function App() {
   const [authForm, setAuthForm] = useState({
     name: "",
     phone: "",
+    email: "",
     dob: "",
     weightKg: "",
     password: "",
     confirmPassword: "",
+    otp: "",
     newPassword: "",
     confirmNewPassword: "",
   });
+  const [pendingGoogleSession, setPendingGoogleSession] = useState<{
+    token: string;
+    userId: string;
+    name: string;
+    picture?: string;
+  } | null>(null);
+  const [googleProfileForm, setGoogleProfileForm] = useState({ dob: "", weightKg: "" });
 
   useEffect(() => {
     setAssessmentForm((current) => ({ ...current, userId }));
@@ -433,6 +450,14 @@ export default function App() {
 
         if (latestSummary) {
           setSummary(normalizeSummary(latestSummary));
+        }
+
+        const weightResult = await apiRequest<{ metrics: { _id: string; date: string; weightKg?: number }[] }>(
+          `/api/body?userId=${encodeURIComponent(userId)}`,
+        ).catch(() => null);
+
+        if (mounted && weightResult) {
+          setWeightEntries(weightResult.metrics);
         }
       } catch (caughtError) {
         if (!mounted) {
@@ -489,24 +514,6 @@ export default function App() {
       ? items
       : ["Your day is balanced so far. Keep the same pattern tomorrow."];
   }, [summary]);
-
-  const whatsappPreview = useMemo(() => {
-    if (!summary) {
-      return "Your WhatsApp summary will appear after you log meals and generate a daily report.";
-    }
-
-    const mealNames = summary.meals.map((meal) => meal.name).join(", ") || "No meals logged";
-
-    return [
-      `Meals: ${mealNames}`,
-      `Calories: ${Math.round(summary.consumed.calories)} / ${Math.round(summary.targets.calories)}`,
-      `Protein: ${Math.round(summary.consumed.proteinG)}g, Carbs: ${Math.round(summary.consumed.carbsG)}g, Fat: ${Math.round(summary.consumed.fatG)}g`,
-      `Activity burn: ${Math.round(summary.activityBurn ?? 0)} kcal`,
-      `Score: ${summary.score}/100`,
-      `Goal achievement: ${summary.goalAchievementPercentage}%`,
-      `Tomorrow: ${recommendations[0] ?? "Keep going."}`,
-    ].join("\n");
-  }, [recommendations, summary]);
 
   const handleAssessmentSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -645,29 +652,29 @@ export default function App() {
     }
   };
 
-  const handleWhatsappSubmit = async (event: FormEvent<HTMLFormElement>) => {
+  const handleDigestSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    setBusy((current) => ({ ...current, whatsapp: true }));
+    setBusy((current) => ({ ...current, digest: true }));
     setError("");
 
     try {
       const response = await apiRequest<{ sent: boolean; preview?: string; reason?: string; message?: string }>(
-        "/api/whatsapp/daily-summary",
+        "/api/email/daily-summary",
         {
           method: "POST",
           body: JSON.stringify({
             userId,
             date: selectedDate,
-            to: whatsappNumber,
+            to: digestEmail.trim() || undefined,
           }),
         },
       );
 
-      setWhatsappStatusMessage(response.sent ? "WhatsApp summary sent." : response.reason ?? "Preview generated only.");
+      setDigestStatusMessage(response.sent ? "Daily digest emailed." : response.reason ?? "Preview generated only.");
     } catch (caughtError) {
-      setError(caughtError instanceof Error ? caughtError.message : "Unable to send WhatsApp summary");
+      setError(caughtError instanceof Error ? caughtError.message : "Unable to send daily digest email");
     } finally {
-      setBusy((current) => ({ ...current, whatsapp: false }));
+      setBusy((current) => ({ ...current, digest: false }));
     }
   };
 
@@ -686,6 +693,50 @@ export default function App() {
     }
   }
 
+  const handleLogWeight = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!weightInput.trim()) return;
+    setBusy((current) => ({ ...current, weight: true }));
+    setError("");
+
+    try {
+      await apiRequest("/api/body", {
+        method: "POST",
+        body: JSON.stringify({ userId, date: selectedDate, weightKg: Number(weightInput) }),
+      });
+      setWeightInput("");
+      const result = await apiRequest<{ metrics: { _id: string; date: string; weightKg?: number }[] }>(
+        `/api/body?userId=${encodeURIComponent(userId)}`,
+      );
+      setWeightEntries(result.metrics);
+    } catch (caughtError) {
+      setError(caughtError instanceof Error ? caughtError.message : "Unable to log weight");
+    } finally {
+      setBusy((current) => ({ ...current, weight: false }));
+    }
+  };
+
+  const handleCoachAsk = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const question = coachQuestion.trim();
+    if (!question) return;
+    setBusy((current) => ({ ...current, coach: true }));
+    setError("");
+
+    try {
+      const result = await apiRequest<{ answer: string }>("/api/coach/ask", {
+        method: "POST",
+        body: JSON.stringify({ userId, date: selectedDate, question }),
+      });
+      setCoachMessages((current) => [...current, { question, answer: result.answer }]);
+      setCoachQuestion("");
+    } catch (caughtError) {
+      setError(caughtError instanceof Error ? caughtError.message : "Unable to reach the AI coach");
+    } finally {
+      setBusy((current) => ({ ...current, coach: false }));
+    }
+  };
+
   const saveAuth = (session: AuthSession) => {
     window.localStorage.setItem("nutrition:auth", JSON.stringify(session));
     setCurrentUser(session);
@@ -698,7 +749,7 @@ export default function App() {
     try {
       const session = await apiRequest<AuthSession>("/api/auth/login", {
         method: "POST",
-        body: JSON.stringify({ phone: authForm.phone, password: authForm.password }),
+        body: JSON.stringify({ phone: `+91${authForm.phone.trim()}`, password: authForm.password }),
       });
       saveAuth(session);
     } catch (err) {
@@ -721,7 +772,8 @@ export default function App() {
         method: "POST",
         body: JSON.stringify({
           name: authForm.name,
-          phone: authForm.phone,
+          phone: `+91${authForm.phone.trim()}`,
+          email: authForm.email.trim() || undefined,
           dob: authForm.dob,
           weightKg: Number(authForm.weightKg),
           password: authForm.password,
@@ -740,14 +792,31 @@ export default function App() {
     setAuthBusy(true);
     setAuthError("");
     try {
-      const result = await apiRequest<{ resetToken: string }>("/api/auth/forgot-password", {
+      await apiRequest("/api/auth/forgot-password", {
         method: "POST",
-        body: JSON.stringify({ name: authForm.name, phone: authForm.phone, dob: authForm.dob }),
+        body: JSON.stringify({ email: authForm.email.trim() }),
+      });
+      setAuthView("verify-otp");
+    } catch (err) {
+      setAuthError(err instanceof Error ? err.message : "Unable to send verification code.");
+    } finally {
+      setAuthBusy(false);
+    }
+  };
+
+  const handleVerifyOtp = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setAuthBusy(true);
+    setAuthError("");
+    try {
+      const result = await apiRequest<{ resetToken: string }>("/api/auth/verify-otp", {
+        method: "POST",
+        body: JSON.stringify({ email: authForm.email.trim(), otp: authForm.otp.trim() }),
       });
       setResetToken(result.resetToken);
       setAuthView("reset");
     } catch (err) {
-      setAuthError(err instanceof Error ? err.message : "Verification failed");
+      setAuthError(err instanceof Error ? err.message : "Invalid or expired code.");
     } finally {
       setAuthBusy(false);
     }
@@ -776,11 +845,70 @@ export default function App() {
     }
   };
 
+  const handleGoogleAuth = async (credentialResponse: { credential?: string }) => {
+    setAuthBusy(true);
+    setAuthError("");
+    try {
+      const data = await apiRequest<{
+        token: string;
+        userId: string;
+        name: string;
+        picture?: string;
+        needsProfile?: boolean;
+      }>("/api/auth/google", {
+        method: "POST",
+        body: JSON.stringify({ credential: credentialResponse.credential }),
+      });
+
+      if (data.needsProfile) {
+        setPendingGoogleSession({ token: data.token, userId: data.userId, name: data.name, picture: data.picture });
+        setAuthView("google-profile");
+        return;
+      }
+
+      saveAuth({ token: data.token, userId: data.userId, name: data.name });
+    } catch (err) {
+      setAuthError(err instanceof Error ? err.message : "Google sign-in failed.");
+    } finally {
+      setAuthBusy(false);
+    }
+  };
+
+  const handleGoogleProfileComplete = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!pendingGoogleSession) return;
+
+    setAuthBusy(true);
+    setAuthError("");
+    try {
+      await apiRequest("/api/auth/update-profile", {
+        method: "POST",
+        body: JSON.stringify({
+          userId: pendingGoogleSession.userId,
+          dob: googleProfileForm.dob,
+          weightKg: Number(googleProfileForm.weightKg),
+        }),
+      });
+
+      saveAuth({
+        token: pendingGoogleSession.token,
+        userId: pendingGoogleSession.userId,
+        name: pendingGoogleSession.name,
+      });
+      setPendingGoogleSession(null);
+      setGoogleProfileForm({ dob: "", weightKg: "" });
+    } catch (err) {
+      setAuthError(err instanceof Error ? err.message : "Unable to save profile details.");
+    } finally {
+      setAuthBusy(false);
+    }
+  };
+
   const handleLogout = () => {
     window.localStorage.removeItem("nutrition:auth");
     setCurrentUser(null);
     setAuthView("login");
-    setAuthForm({ name: "", phone: "", dob: "", weightKg: "", password: "", confirmPassword: "", newPassword: "", confirmNewPassword: "" });
+    setAuthForm({ name: "", phone: "", email: "", dob: "", weightKg: "", password: "", confirmPassword: "", otp: "", newPassword: "", confirmNewPassword: "" });
     setAuthError("");
   };
 
@@ -855,10 +983,8 @@ export default function App() {
             <div className="auth-brand">
               <div className="brand-mark">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M12 3C12 3 20 7 20 13C20 18 16 21 12 21C8 21 4 18 4 13C4 7 12 3 12 3Z" fill="white" fillOpacity="0.95"/>
-              <path d="M12 21V9" stroke="#EB6429" strokeOpacity="0.5" strokeWidth="1.5" strokeLinecap="round"/>
-              <path d="M12 14L8.5 10.5" stroke="#EB6429" strokeOpacity="0.4" strokeWidth="1.2" strokeLinecap="round"/>
-              <path d="M12 17L15.5 13.5" stroke="#EB6429" strokeOpacity="0.4" strokeWidth="1.2" strokeLinecap="round"/>
+              <path d="M12,2 Q19,12 12,22 Q5,12 12,2 Z" fill="white"/>
+              <path d="M7,12 H9 L10.5,9 L13,15 L14.5,12 H17" stroke="#0a5f4f" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
           </div>
               <strong>NutriCore</strong>
@@ -874,13 +1000,17 @@ export default function App() {
 
                 <label className="field">
                   <span>Phone number</span>
-                  <input
-                    type="tel"
-                    placeholder="+91xxxxxxxxxx"
-                    value={authForm.phone}
-                    onChange={(e) => setAuthForm((f) => ({ ...f, phone: e.target.value }))}
-                    required
-                  />
+                  <div className="phone-input">
+                    <span className="prefix">+91</span>
+                    <input
+                      type="tel"
+                      placeholder="7037449337"
+                      value={authForm.phone}
+                      onChange={(e) => setAuthForm((f) => ({ ...f, phone: e.target.value.replace(/\D/g, "") }))}
+                      maxLength={10}
+                      required
+                    />
+                  </div>
                 </label>
                 <label className="field">
                   <span>Password</span>
@@ -898,6 +1028,19 @@ export default function App() {
                 <button type="submit" disabled={authBusy}>
                   {authBusy ? "Logging in..." : "Log In"}
                 </button>
+
+                <div className="auth-divider"><span>or</span></div>
+                <div className="google-btn-wrap">
+                  <GoogleLogin
+                    onSuccess={handleGoogleAuth}
+                    onError={() => setAuthError("Google sign-in failed.")}
+                    text="signin_with"
+                    shape="rectangular"
+                    theme="outline"
+                    size="large"
+                    width="100%"
+                  />
+                </div>
 
                 <div className="auth-links">
                   <button type="button" className="auth-text-btn" onClick={() => openAuth("forgot")}>
@@ -928,12 +1071,25 @@ export default function App() {
                 </label>
                 <label className="field">
                   <span>Phone number</span>
+                  <div className="phone-input">
+                    <span className="prefix">+91</span>
+                    <input
+                      type="tel"
+                      placeholder="7037449337"
+                      value={authForm.phone}
+                      onChange={(e) => setAuthForm((f) => ({ ...f, phone: e.target.value.replace(/\D/g, "") }))}
+                      maxLength={10}
+                      required
+                    />
+                  </div>
+                </label>
+                <label className="field">
+                  <span>Email (for password recovery)</span>
                   <input
-                    type="tel"
-                    placeholder="+91xxxxxxxxxx"
-                    value={authForm.phone}
-                    onChange={(e) => setAuthForm((f) => ({ ...f, phone: e.target.value }))}
-                    required
+                    type="email"
+                    placeholder="you@example.com"
+                    value={authForm.email}
+                    onChange={(e) => setAuthForm((f) => ({ ...f, email: e.target.value }))}
                   />
                 </label>
                 <label className="field">
@@ -983,6 +1139,19 @@ export default function App() {
                   {authBusy ? "Creating account..." : "Create Account"}
                 </button>
 
+                <div className="auth-divider"><span>or</span></div>
+                <div className="google-btn-wrap">
+                  <GoogleLogin
+                    onSuccess={handleGoogleAuth}
+                    onError={() => setAuthError("Google sign-in failed.")}
+                    text="signup_with"
+                    shape="rectangular"
+                    theme="outline"
+                    size="large"
+                    width="100%"
+                  />
+                </div>
+
                 <div className="auth-links">
                   <button type="button" className="auth-text-btn" onClick={() => openAuth("login")}>
                     Already have an account? Log in
@@ -994,34 +1163,15 @@ export default function App() {
             {authView === "forgot" && (
               <form className="auth-form" onSubmit={handleForgot}>
                 <h2>Reset password</h2>
-                <p className="auth-sub">Verify your identity to continue</p>
+                <p className="auth-sub">Enter your email and we'll send a verification code.</p>
 
                 <label className="field">
-                  <span>Full name</span>
+                  <span>Email</span>
                   <input
-                    type="text"
-                    placeholder="Name on your account"
-                    value={authForm.name}
-                    onChange={(e) => setAuthForm((f) => ({ ...f, name: e.target.value }))}
-                    required
-                  />
-                </label>
-                <label className="field">
-                  <span>Phone number</span>
-                  <input
-                    type="tel"
-                    placeholder="+91xxxxxxxxxx"
-                    value={authForm.phone}
-                    onChange={(e) => setAuthForm((f) => ({ ...f, phone: e.target.value }))}
-                    required
-                  />
-                </label>
-                <label className="field">
-                  <span>Date of birth</span>
-                  <input
-                    type="date"
-                    value={authForm.dob}
-                    onChange={(e) => setAuthForm((f) => ({ ...f, dob: e.target.value }))}
+                    type="email"
+                    placeholder="you@example.com"
+                    value={authForm.email}
+                    onChange={(e) => setAuthForm((f) => ({ ...f, email: e.target.value }))}
                     required
                   />
                 </label>
@@ -1029,10 +1179,45 @@ export default function App() {
                 {authError && <p className="auth-error">{authError}</p>}
 
                 <button type="submit" disabled={authBusy}>
-                  {authBusy ? "Verifying..." : "Verify Identity"}
+                  {authBusy ? "Sending code..." : "Send verification code"}
                 </button>
 
                 <div className="auth-links">
+                  <button type="button" className="auth-text-btn" onClick={() => openAuth("login")}>
+                    Back to login
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {authView === "verify-otp" && (
+              <form className="auth-form" onSubmit={handleVerifyOtp}>
+                <h2>Check your email</h2>
+                <p className="auth-sub">Enter the 6-digit code we sent to {authForm.email}.</p>
+
+                <label className="field">
+                  <span>Verification code</span>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="123456"
+                    value={authForm.otp}
+                    onChange={(e) => setAuthForm((f) => ({ ...f, otp: e.target.value }))}
+                    required
+                  />
+                </label>
+
+                {authError && <p className="auth-error">{authError}</p>}
+
+                <button type="submit" disabled={authBusy}>
+                  {authBusy ? "Verifying..." : "Verify code"}
+                </button>
+
+                <div className="auth-links">
+                  <button type="button" className="auth-text-btn" onClick={() => openAuth("forgot")}>
+                    Resend code
+                  </button>
+                  <span>·</span>
                   <button type="button" className="auth-text-btn" onClick={() => openAuth("login")}>
                     Back to login
                   </button>
@@ -1073,6 +1258,45 @@ export default function App() {
                 </button>
               </form>
             )}
+
+            {authView === "google-profile" && (
+              <form className="auth-form" onSubmit={handleGoogleProfileComplete}>
+                <div className="google-profile-header">
+                  {pendingGoogleSession?.picture && (
+                    <img src={pendingGoogleSession.picture} alt="" className="google-avatar" />
+                  )}
+                  <h2>Almost there</h2>
+                  <p className="auth-sub">Welcome, {pendingGoogleSession?.name}! Just a few more details.</p>
+                </div>
+
+                <label className="field">
+                  <span>Date of birth</span>
+                  <input
+                    type="date"
+                    value={googleProfileForm.dob}
+                    onChange={(e) => setGoogleProfileForm((f) => ({ ...f, dob: e.target.value }))}
+                    required
+                  />
+                </label>
+                <label className="field">
+                  <span>Weight (kg)</span>
+                  <input
+                    type="number"
+                    min="1"
+                    placeholder="e.g. 68"
+                    value={googleProfileForm.weightKg}
+                    onChange={(e) => setGoogleProfileForm((f) => ({ ...f, weightKg: e.target.value }))}
+                    required
+                  />
+                </label>
+
+                {authError && <p className="auth-error">{authError}</p>}
+
+                <button type="submit" disabled={authBusy}>
+                  {authBusy ? "Saving..." : "Finish setting up"}
+                </button>
+              </form>
+            )}
           </div>
         </div>
         )}
@@ -1096,7 +1320,8 @@ export default function App() {
         <div className="brand-lockup">
           <div className="brand-mark">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-              <path d="M12 3C12 3 20 7 20 13C20 18 16 21 12 21C8 21 4 18 4 13C4 7 12 3 12 3Z" fill="white" />
+              <path d="M12,2 Q19,12 12,22 Q5,12 12,2 Z" fill="white"/>
+              <path d="M7,12 H9 L10.5,9 L13,15 L14.5,12 H17" stroke="#0a5f4f" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
           </div>
           <div>
@@ -1106,30 +1331,30 @@ export default function App() {
         </div>
 
         <nav className="sidebar-nav" aria-label="Primary">
-          <button type="button" onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}>
+          <NavLink to="/" end className={({ isActive }) => (isActive ? "active" : "")}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>
             Dashboard
-          </button>
-          <button type="button" onClick={() => document.getElementById("meal")?.scrollIntoView({ behavior: "smooth" })}>
+          </NavLink>
+          <NavLink to="/meal" className={({ isActive }) => (isActive ? "active" : "")}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M4 3v18M4 3c4 0 4 3 4 5s0 5-4 5M20 3v18"/></svg>
             Log a meal
-          </button>
-          <button type="button" onClick={() => document.getElementById("activity")?.scrollIntoView({ behavior: "smooth" })}>
+          </NavLink>
+          <NavLink to="/activity" className={({ isActive }) => (isActive ? "active" : "")}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M13 3L4 14h6l-1 7 9-11h-6l1-7z"/></svg>
             Activity
-          </button>
-          <button type="button" onClick={() => document.getElementById("assessment")?.scrollIntoView({ behavior: "smooth" })}>
+          </NavLink>
+          <NavLink to="/assessment" className={({ isActive }) => (isActive ? "active" : "")}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M4 14c0-3 4-4 8-4s8 1 8 4M12 3a4 4 0 100 8 4 4 0 000-8z"/></svg>
             Health assessment
-          </button>
-          <button type="button" onClick={() => document.getElementById("whatsapp")?.scrollIntoView({ behavior: "smooth" })}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M21 11.5a8.4 8.4 0 01-8.8 8.4A8.5 8.5 0 014 12a8.4 8.4 0 0114.5-5.8L21 4v5.5h-5.3"/></svg>
-            Daily digest
-          </button>
-          <button type="button" onClick={() => document.getElementById("report")?.scrollIntoView({ behavior: "smooth" })}>
+          </NavLink>
+          <NavLink to="/reports" className={({ isActive }) => (isActive ? "active" : "")}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M6 3h9l5 5v13H6z"/><path d="M9 12h6M9 16h6M9 8h3"/></svg>
             Reports
-          </button>
+          </NavLink>
+          <NavLink to="/coach" className={({ isActive }) => (isActive ? "active" : "")}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M12 3a5 5 0 015 5c0 2-1 3-2 4s-1 2-1 3H10c0-1 0-2-1-3s-2-2-2-4a5 5 0 015-5z"/><path d="M10 19h4M11 22h2"/></svg>
+            AI coach
+          </NavLink>
         </nav>
 
         <div className="sidebar-foot">
@@ -1163,6 +1388,8 @@ export default function App() {
           </div>
         </div>
 
+        <Routes>
+        <Route path="/" element={<>
         <section className="hero-row">
           <div className="dashboard-card ring-card">
             <CalorieRing
@@ -1212,8 +1439,9 @@ export default function App() {
             ))}
           </ul>
         </section>
+        </>} />
 
-        <section className="body-grid">
+        <Route path="/assessment" element={
         <form id="assessment" className="dashboard-card form-card" onSubmit={handleAssessmentSubmit}>
           <div className="card-header">
             <div>
@@ -1446,7 +1674,9 @@ export default function App() {
             </div>
           ) : null}
         </form>
+        } />
 
+        <Route path="/meal" element={
         <section className="dashboard-card form-card" id="meal">
           <div className="card-header">
             <div>
@@ -1613,7 +1843,9 @@ export default function App() {
             ) : null}
           </form>
         </section>
+        } />
 
+        <Route path="/activity" element={<>
         <section className="dashboard-card form-card" id="activity">
           <div className="card-header">
             <div>
@@ -1697,27 +1929,30 @@ export default function App() {
           </form>
         </section>
 
-        <section className="dashboard-card form-card" id="whatsapp">
+        <section className="dashboard-card form-card">
           <div className="card-header">
             <div>
-              <p className="card-kicker">Step 4 · via WhatsApp</p>
-              <h2>Daily digest</h2>
+              <p className="card-kicker">Body tracking</p>
+              <h2>Weight tracking</h2>
             </div>
-            <span className="score-badge">Send report</span>
+            <span className="score-badge score-blue">{weightEntries.length} logged</span>
           </div>
 
-          <form className="stack" onSubmit={handleWhatsappSubmit}>
+          <form className="stack" onSubmit={handleLogWeight}>
             <div className="form-grid two-col">
               <label className="field">
-                <span>Recipient number</span>
+                <span>Today's weight (kg)</span>
                 <input
-                  value={whatsappNumber}
-                  onChange={(event) => setWhatsappNumber(event.target.value)}
-                  placeholder="+91xxxxxxxxxx"
+                  type="number"
+                  min="1"
+                  step="any"
+                  placeholder="e.g. 68"
+                  value={weightInput}
+                  onChange={(event) => setWeightInput(event.target.value)}
                 />
               </label>
               <label className="field">
-                <span>Report date</span>
+                <span>Date</span>
                 <input
                   type="date"
                   value={selectedDate}
@@ -1728,19 +1963,33 @@ export default function App() {
 
             <div className="form-footer">
               <div className="helper-copy">
-                <strong>Daily summary message</strong>
-                <span>
-                  {whatsappStatusMessage ||
-                    "Click \"Send WhatsApp summary\" to receive your daily nutrition report on WhatsApp."}
-                </span>
+                <strong>Track your trend, not the daily noise</strong>
+                <span>Log once a day, same time if possible, to see a meaningful trend over weeks.</span>
               </div>
-              <button type="submit" disabled={busy.whatsapp}>
-                {busy.whatsapp ? "Sending..." : "Send WhatsApp summary"}
+              <button type="submit" disabled={busy.weight || !weightInput.trim()}>
+                {busy.weight ? "Saving..." : "Log weight"}
               </button>
             </div>
           </form>
-        </section>
 
+          {weightEntries.length ? (
+            <div className="meal-list">
+              {weightEntries.slice(0, 8).map((entry) => (
+                <article key={entry._id} className="meal-card">
+                  <div>
+                    <strong>{entry.weightKg ? `${entry.weightKg} kg` : "—"}</strong>
+                    <span>{entry.date}</span>
+                  </div>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <p className="empty-state">No weight entries yet. Log today's weight to start a trend.</p>
+          )}
+        </section>
+        </>} />
+
+        <Route path="/reports" element={<>
         <section id="report" className="dashboard-card form-card full-span">
           <div className="card-header">
             <div>
@@ -1866,7 +2115,112 @@ export default function App() {
             </p>
           )}
         </section>
-      </section>
+
+        <section className="dashboard-card form-card" id="whatsapp">
+          <div className="card-header">
+            <div>
+              <p className="card-kicker">Send by email</p>
+              <h2>Daily digest</h2>
+            </div>
+            <span className="score-badge">Send report</span>
+          </div>
+
+          <form className="stack" onSubmit={handleDigestSubmit}>
+            <div className="form-grid two-col">
+              <label className="field">
+                <span>Recipient email</span>
+                <input
+                  type="email"
+                  value={digestEmail}
+                  onChange={(event) => setDigestEmail(event.target.value)}
+                  placeholder="you@example.com"
+                />
+              </label>
+              <label className="field">
+                <span>Report date</span>
+                <input
+                  type="date"
+                  value={selectedDate}
+                  onChange={(event) => setSelectedDate(event.target.value)}
+                />
+              </label>
+            </div>
+
+            <div className="form-footer">
+              <div className="helper-copy">
+                <strong>Daily summary message</strong>
+                <span>
+                  {digestStatusMessage ||
+                    "Click \"Send email summary\" to receive today's report by email."}
+                </span>
+              </div>
+              <button type="submit" disabled={busy.digest}>
+                {busy.digest ? "Sending..." : "Send email summary"}
+              </button>
+            </div>
+          </form>
+        </section>
+        </>} />
+
+        <Route path="/coach" element={
+        <section className="dashboard-card form-card">
+          <div className="card-header">
+            <div>
+              <p className="card-kicker">Grounded in today's log</p>
+              <h2>AI coach</h2>
+            </div>
+            <span className="score-badge score-blue">Score {healthScore}</span>
+          </div>
+
+          <div className="stats-grid">
+            <StatTile label="Calories left" value={`${Math.round(remainingCalories)} kcal`} />
+            <StatTile
+              label="Protein logged"
+              value={`${Math.round(summary?.consumed.proteinG ?? 0)}g / ${Math.round(summary?.targets.proteinG ?? assessment?.macroTargets.proteinG ?? 0)}g`}
+            />
+          </div>
+
+          {coachMessages.length ? (
+            <div className="coach-thread">
+              {coachMessages.map((message, index) => (
+                <div className="coach-exchange" key={index}>
+                  <div className="coach-question">{message.question}</div>
+                  <div className="coach-answer">{message.answer}</div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="empty-state">
+              Ask what to eat next, whether you're on track, or how to close a nutrient gap — the
+              coach reads today's logged meals and activity before answering.
+            </p>
+          )}
+
+          <form className="stack" onSubmit={handleCoachAsk}>
+            <div className="form-grid two-col">
+              <label className="field" style={{ gridColumn: "1 / -1" }}>
+                <span>Ask a question</span>
+                <input
+                  value={coachQuestion}
+                  onChange={(event) => setCoachQuestion(event.target.value)}
+                  placeholder="What should I eat for dinner tonight?"
+                />
+              </label>
+            </div>
+
+            <div className="form-footer">
+              <div className="helper-copy">
+                <strong>Uses today's data</strong>
+                <span>Meals, activity, and your goal/health profile for {selectedDate}.</span>
+              </div>
+              <button type="submit" disabled={busy.coach || !coachQuestion.trim()}>
+                {busy.coach ? "Thinking..." : "Ask coach"}
+              </button>
+            </div>
+          </form>
+        </section>
+        } />
+        </Routes>
 
       {error ? <div className="error-banner">{error}</div> : null}
       </div>
@@ -1874,6 +2228,15 @@ export default function App() {
   );
 }
 
+
+function StatTile({ label, value }: { label: string; value: string }) {
+  return (
+    <article className="stat-tile">
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </article>
+  );
+}
 
 function CalorieRing({ value, max }: { value: number; max: number }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -1958,15 +2321,27 @@ function Landing({ onGetStarted, onLogin }: { onGetStarted: () => void; onLogin:
         <div className="brand-lockup">
           <div className="brand-mark">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-              <path d="M12 3C12 3 20 7 20 13C20 18 16 21 12 21C8 21 4 18 4 13C4 7 12 3 12 3Z" fill="white" />
+              <path d="M12,2 Q19,12 12,22 Q5,12 12,2 Z" fill="white"/>
+              <path d="M7,12 H9 L10.5,9 L13,15 L14.5,12 H17" stroke="#0a5f4f" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
           </div>
           <strong>NutriCore</strong>
         </div>
         <nav className="landing-top-links">
-          <span>How it works</span>
-          <span>Assessment</span>
-          <span>Pricing</span>
+          <button
+            type="button"
+            className="landing-nav-link"
+            onClick={() => document.getElementById("how-it-works")?.scrollIntoView({ behavior: "smooth" })}
+          >
+            How it works
+          </button>
+          <button
+            type="button"
+            className="landing-nav-link"
+            onClick={() => document.getElementById("features")?.scrollIntoView({ behavior: "smooth" })}
+          >
+            Assessment
+          </button>
         </nav>
         <div className="landing-top-actions">
           <button type="button" className="secondary compact" onClick={onLogin}>
@@ -1984,7 +2359,7 @@ function Landing({ onGetStarted, onLogin }: { onGetStarted: () => void; onLogin:
           <h1>Read your blood report. Photograph your plate. Know exactly where you stand.</h1>
           <p className="lede">
             NutriCore turns a blood report and a meal photo into a daily target, a running score,
-            and a WhatsApp check-in — no manual food diary required.
+            and an email check-in — no manual food diary required.
           </p>
           <div className="landing-hero-actions">
             <button type="button" onClick={onGetStarted}>
@@ -2027,11 +2402,11 @@ function Landing({ onGetStarted, onLogin }: { onGetStarted: () => void; onLogin:
         </div>
       </section>
 
-      <section className="landing-features">
+      <section id="features" className="landing-features">
         <div className="landing-feature">
           <div className="num">01</div>
           <h3>Blood-aware targets</h3>
-          <p>Upload a report once — AI reads it and sets calorie and macro targets suited to your actual biomarkers.</p>
+          <p>Upload a report once — AI reads it and sets calorie and macro targets suited to your biomarkers. No report? Answer a few quick questions instead and we'll set solid starting targets.</p>
         </div>
         <div className="landing-feature">
           <div className="num">02</div>
@@ -2046,11 +2421,11 @@ function Landing({ onGetStarted, onLogin }: { onGetStarted: () => void; onLogin:
         <div className="landing-feature">
           <div className="num">04</div>
           <h3>A digest, not a diary</h3>
-          <p>Get a short WhatsApp check-in each evening — what you hit, what to adjust tomorrow.</p>
+          <p>Get a short email check-in each evening — what you hit, what to adjust tomorrow.</p>
         </div>
       </section>
 
-      <section className="landing-flow">
+      <section id="how-it-works" className="landing-flow">
         <div>
           <h2>Three steps, once a day.</h2>
           <p>

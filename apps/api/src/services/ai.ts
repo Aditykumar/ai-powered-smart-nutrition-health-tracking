@@ -160,6 +160,61 @@ ${note ? `Extra note: ${note}` : ""}`;
   };
 }
 
+export async function askCoach({
+  question,
+  goal,
+  healthConditions,
+  dietaryPreferences,
+  consumed,
+  targets,
+  meals,
+  activityBurn,
+}: {
+  question: string;
+  goal?: string;
+  healthConditions?: string[];
+  dietaryPreferences?: string[];
+  consumed: { calories: number; proteinG: number; carbsG: number; fatG: number; fiberG?: number };
+  targets: { calories: number; proteinG: number; carbsG: number; fatG: number };
+  meals: { name: string; quantity: string }[];
+  activityBurn: number;
+}): Promise<{ answer: string }> {
+  const remainingCalories = Math.max(0, Math.round(targets.calories - consumed.calories + activityBurn));
+  const remainingProtein = Math.max(0, Math.round(targets.proteinG - consumed.proteinG));
+
+  if (!env.geminiApiKey) {
+    return {
+      answer: `Add GEMINI_API_KEY to enable the full AI coach. In the meantime: you have about ${remainingCalories} kcal and ${remainingProtein}g protein left today — favor a protein-rich, fiber-rich meal to close the gap.`,
+    };
+  }
+
+  const prompt = `You are a friendly, practical nutrition coach inside a health-tracking app. Answer the user's question directly and briefly (3-5 sentences, no markdown, no headers, plain conversational text).
+
+Today so far:
+- Consumed: ${Math.round(consumed.calories)} kcal, ${Math.round(consumed.proteinG)}g protein, ${Math.round(consumed.carbsG)}g carbs, ${Math.round(consumed.fatG)}g fat
+- Daily targets: ${targets.calories} kcal, ${targets.proteinG}g protein, ${targets.carbsG}g carbs, ${targets.fatG}g fat
+- Activity burn: ${Math.round(activityBurn)} kcal
+- Remaining today: about ${remainingCalories} kcal and ${remainingProtein}g protein
+- Meals logged today: ${meals.length ? meals.map((m) => `${m.name} (${m.quantity})`).join(", ") : "none yet"}
+${goal ? `- Goal: ${goal}` : ""}
+${healthConditions?.length ? `- Health conditions to respect: ${healthConditions.join(", ")}` : ""}
+${dietaryPreferences?.length ? `- Dietary preferences: ${dietaryPreferences.join(", ")}` : ""}
+
+User's question: "${question}"
+
+Suggest concrete, specific foods or meals that fit the remaining calorie/macro budget and respect any health conditions or preferences listed. Return ONLY a JSON object: {"answer": string}`;
+
+  try {
+    const result = await geminiChat([{ text: prompt }]);
+    return typeof result?.answer === "string"
+      ? { answer: result.answer }
+      : { answer: "I couldn't reach the AI coach right now — try again in a moment." };
+  } catch (error) {
+    console.error("[Coach] Gemini request failed:", error);
+    return { answer: "The AI coach is temporarily unavailable — try again in a moment." };
+  }
+}
+
 export async function analyzeActivity({
   fileDataUrl,
   stepCount,
