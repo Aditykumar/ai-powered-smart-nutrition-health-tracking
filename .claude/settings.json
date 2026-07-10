@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl -s https://ai-powered-smart-nutrition-health-tracking-api-8rwa-cdmejcco1.vercel.app/api/status)",
+      "Bash(curl -s https://ai-powered-smart-nutrition-health-tracking-api-8rwa-cdmejcco1.vercel.app/api/db/atlas-ping)",
+      "Bash(curl -sL https://ai-powered-smart-nutrition-health-tracking-api-8rwa-cdmejcco1.vercel.app/api/status)",
+      "Bash(curl -sL https://ai-powered-smart-nutrition-health-tracking-api-8rwa-cdmejcco1.vercel.app/api/db/atlas-ping)",
+      "Bash(curl -s -H \"Accept: application/json\" https://ai-powered-smart-nutrition-health-tracking-api-8rwa-cdmejcco1.vercel.app/api/status)",
+      "Bash(git -c user.name=\"Aditykumar\" -c user.email=\"90484775+Aditykumar@users.noreply.github.com\" commit -m \"Fix CORS for Vercel deployment\")",
+      "Bash(git -c user.name=\"Aditykumar\" -c user.email=\"90484775+Aditykumar@users.noreply.github.com\" commit -m \"Fix CORS preflight — return 200 for OPTIONS before Express\")",
+      "Bash(git -c user.name=\"Aditykumar\" -c user.email=\"90484775+Aditykumar@users.noreply.github.com\" commit -m \"Remove responseMimeType — not supported in Gemini v1\")",
+      "Bash(git commit *)",
+      "Bash(node_modules/.bin/tsc --noEmit -p apps/web/tsconfig.json)"
+    ]
+  }
+}
